@@ -1,7 +1,8 @@
 import { useGameStore } from '@/store/game-store';
 import { useUIStore } from '@/store/ui-store';
 import { useChallengeStore } from '@/store/challenge-store';
-import { MockShareService } from '@/infra/share/mock-share';
+import { getGameService } from '@/services';
+import { ReviveDialog } from '@/components/ReviveDialog';
 import { telemetry } from '@/infra/telemetry';
 import type { BattleResult } from '@/types/challenge';
 
@@ -16,7 +17,11 @@ export function ResultScene() {
   const hintRemaining = useGameStore((s) => s.hintRemaining);
   const failReason = useGameStore((s) => s.failReason);
   const _config = useGameStore((s) => s._config);
+  const reviveState = useGameStore((s) => s.reviveState);
+  const reviveUsed = useGameStore((s) => s.reviveUsed);
   const resetLevel = useGameStore((s) => s.resetLevel);
+  const confirmReviveAction = useGameStore((s) => s.confirmReviveAction);
+  const declineReviveAction = useGameStore((s) => s.declineReviveAction);
   const navigateTo = useUIStore((s) => s.navigateTo);
 
   const todayBest = useChallengeStore((s) => s.getTodayBest());
@@ -26,6 +31,8 @@ export function ResultScene() {
   const durationSec = Math.round(durationMs / 1000);
   const shuffleUsed = (_config?.shuffleLimit ?? 0) - shuffleRemaining;
   const hintUsed = (_config?.hintLimit ?? 0) - hintRemaining;
+
+  const showRevive = reviveState === 'offered' && !isWin;
 
   const handleRetry = () => {
     resetLevel();
@@ -43,12 +50,21 @@ export function ResultScene() {
       success: isWin,
       durationMs,
       shuffleUsed,
-      reviveUsed: 0,
+      reviveUsed,
       hintUsed,
       challengeDate,
     };
-    new MockShareService().shareResult(result);
-    telemetry.track('result_share_click', { mode, success: isWin });
+    getGameService().share.shareResult(result);
+    telemetry.track('share_click', { mode, success: isWin });
+  };
+
+  const handleReviveConfirm = () => {
+    confirmReviveAction();
+    navigateTo('battle');
+  };
+
+  const handleReviveDecline = () => {
+    declineReviveAction();
   };
 
   const failReasonText: Record<string, string> = {
@@ -62,6 +78,10 @@ export function ResultScene() {
 
   return (
     <div style={{ textAlign: 'center', padding: 40 }}>
+      {showRevive && (
+        <ReviveDialog onConfirm={handleReviveConfirm} onDecline={handleReviveDecline} />
+      )}
+
       <h1 style={{ color: isWin ? '#4CAF50' : '#F44336', fontSize: 36 }}>
         {isWin ? '恭喜通关!' : '挑战失败'}
       </h1>
@@ -79,7 +99,6 @@ export function ResultScene() {
           </p>
         )}
 
-        {/* Best record comparison for daily challenge */}
         {mode === 'daily_challenge' && isWin && todayBest && todayBest.success && (
           <div style={{
             marginTop: 12,
@@ -93,13 +112,15 @@ export function ResultScene() {
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24 }}>
-        <button onClick={handleHome} style={btnStyle('#666')}>返回首页</button>
-        <button onClick={handleShare} style={btnStyle('#2196F3')}>分享</button>
-        <button onClick={handleRetry} style={btnStyle(isWin ? '#4CAF50' : '#FF9800')}>
-          {isWin ? '再来一局' : '重试'}
-        </button>
-      </div>
+      {!showRevive && (
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24 }}>
+          <button onClick={handleHome} style={btnStyle('#666')}>返回首页</button>
+          <button onClick={handleShare} style={btnStyle('#2196F3')}>分享</button>
+          <button onClick={handleRetry} style={btnStyle(isWin ? '#4CAF50' : '#FF9800')}>
+            {isWin ? '再来一局' : '重试'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

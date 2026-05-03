@@ -17,6 +17,9 @@ export function HomeScene() {
   useEffect(() => {
     loadProgress();
     telemetry.track('home_view', {});
+    if (tutorialCompleted) {
+      telemetry.track('daily_challenge_view', { date: getTodayDate() });
+    }
   }, []);
 
   const todayBest = getTodayBest();

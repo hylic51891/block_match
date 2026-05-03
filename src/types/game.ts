@@ -11,6 +11,8 @@ export type GameStatus =
 
 export type FailReason = 'deadlock' | 'pollution_blocked' | 'no_shuffle' | 'timeout' | 'manual' | 'unknown';
 
+export type ReviveState = 'none' | 'offered' | 'ad_watching' | 'revived';
+
 export type PathFailReason =
   | 'no_path'
   | 'too_many_turns'
@@ -43,4 +45,6 @@ export type GameRuntimeState = {
   challengeDate?: ChallengeDate;
   /** Time limit in seconds (0 or undefined = no limit) */
   timeLimit: number;
+  reviveState: ReviveState;
+  reviveUsed: number;
 };

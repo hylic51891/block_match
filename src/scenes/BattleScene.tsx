@@ -23,6 +23,7 @@ export function BattleScene() {
   const levelStartTime = useGameStore((s) => s.levelStartTime);
   const selectTileAction = useGameStore((s) => s.selectTile);
   const timeoutFailAction = useGameStore((s) => s.timeoutFail);
+  const reviveState = useGameStore((s) => s.reviveState);
 
   // Remaining seconds for timed challenges
   const [remainingSeconds, setRemainingSeconds] = useState<number | undefined>(undefined);
@@ -113,15 +114,15 @@ export function BattleScene() {
     }
   }, true);
 
-  // Navigate to result on win/lose
+  // Navigate to result on win/lose (but not if revive is pending)
   useEffect(() => {
-    if (status === 'success' || status === 'failed') {
+    if (status === 'success' || (status === 'failed' && reviveState === 'none')) {
       const timer = setTimeout(() => {
         useUIStore.getState().navigateTo('result');
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [status]);
+  }, [status, reviveState]);
 
   // Click handler
   const handleClick = useClickHandler(board.width, board.height, CELL_SIZE, (point) => {

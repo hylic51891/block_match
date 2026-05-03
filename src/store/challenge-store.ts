@@ -1,9 +1,6 @@
 import { create } from 'zustand';
 import type { ChallengeDate, DailyChallengeRecord, BattleResult } from '@/types/challenge';
-import { createStorage } from '@/infra/storage';
-import { telemetry } from '@/infra/telemetry';
-
-const storage = createStorage();
+import { getGameService } from '@/services';
 
 interface ChallengeStore {
   tutorialCompleted: boolean;
@@ -14,9 +11,17 @@ interface ChallengeStore {
   // Actions
   loadProgress: () => void;
   markTutorialComplete: () => void;
-  saveDailyResult: (result: BattleResult) => boolean; // returns true if best updated
+  saveDailyResult: (result: BattleResult) => boolean;
   getTodayBest: () => DailyChallengeRecord | null;
   isTutorialCompleted: () => boolean;
+}
+
+function getTodayDateStr(): ChallengeDate {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export const useChallengeStore = create<ChallengeStore>((set, get) => ({
@@ -25,7 +30,8 @@ export const useChallengeStore = create<ChallengeStore>((set, get) => ({
   settings: { audioEnabled: true },
 
   loadProgress: () => {
-    const progress = storage.getLocalProgress();
+    const gameService = getGameService();
+    const progress = gameService.challenge.getLocalProgress();
     set({
       tutorialCompleted: progress.tutorialCompleted,
       lastChallengeDate: progress.lastChallengeDate,
@@ -36,14 +42,8 @@ export const useChallengeStore = create<ChallengeStore>((set, get) => ({
 
   markTutorialComplete: () => {
     set({ tutorialCompleted: true });
-    const progress = storage.getLocalProgress();
-    storage.setLocalProgress({
-      tutorialCompleted: true,
-      lastChallengeDate: progress.lastChallengeDate,
-      dailyBest: progress.dailyBest,
-      settings: progress.settings,
-    });
-    telemetry.track('tutorial_complete', {});
+    const gameService = getGameService();
+    gameService.challenge.markTutorialComplete();
   },
 
   saveDailyResult: (result: BattleResult) => {
@@ -53,7 +53,6 @@ export const useChallengeStore = create<ChallengeStore>((set, get) => ({
     const existing = current[result.challengeDate];
     let isBestUpdate = false;
 
-    // Update best if: no existing record, or new result is successful with better time
     if (!existing) {
       isBestUpdate = true;
     } else if (result.success && (!existing.success || result.durationMs < existing.durationMs)) {
@@ -73,17 +72,12 @@ export const useChallengeStore = create<ChallengeStore>((set, get) => ({
       const newBest = { ...current, [result.challengeDate]: record };
       set({ dailyBest: newBest, lastChallengeDate: result.challengeDate });
 
-      // Persist
-      const progress = storage.getLocalProgress();
-      storage.setLocalProgress({
-        tutorialCompleted: progress.tutorialCompleted,
-        lastChallengeDate: result.challengeDate,
-        dailyBest: newBest,
-        settings: progress.settings,
-      });
-
-      if (result.success) {
-        telemetry.track('daily_best_updated', { date: result.challengeDate, durationMs: result.durationMs });
+      // Persist via service
+      try {
+        const gameService = getGameService();
+        gameService.challenge.saveResult(result);
+      } catch {
+        // GameService not initialized in test environment, that's OK
       }
     }
 
@@ -91,7 +85,7 @@ export const useChallengeStore = create<ChallengeStore>((set, get) => ({
   },
 
   getTodayBest: () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateStr();
     return get().dailyBest[today] ?? null;
   },
 

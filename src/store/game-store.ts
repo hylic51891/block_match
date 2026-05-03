@@ -1,10 +1,10 @@
 import { create } from 'zustand';
-import { createInitialState, startChallenge, startLevel, selectTile, useShuffle, resetLevel, useHint, getHintPair } from '@/core/engine/game-engine';
+import { createInitialState, startChallenge, startLevel, selectTile, useShuffle, resetLevel, useHint, getHintPair, offerRevive, confirmRevive, declineRevive } from '@/core/engine/game-engine';
 import type { GameStateWithConfig } from '@/core/engine/game-engine';
 import type { GameMode, ChallengeDate, BattleResult } from '@/types/challenge';
 import { telemetry } from '@/infra/telemetry';
-import { createStorage } from '@/infra/storage';
-import { useChallengeStore } from './challenge-store';
+import { getPlatform } from '@/platform';
+import { getGameService } from '@/services';
 
 interface GameStore extends GameStateWithConfig {
   hintHighlightPair: [string, string] | null;
@@ -16,9 +16,14 @@ interface GameStore extends GameStateWithConfig {
   getHintPair: () => [string, string] | null;
   resetLevel: () => void;
   timeoutFail: () => void;
+  offerReviveAction: () => void;
+  confirmReviveAction: () => void;
+  declineReviveAction: () => void;
 }
 
-const storage = createStorage();
+function getStorage() {
+  return getPlatform().storage;
+}
 
 function buildBattleResult(state: GameStateWithConfig): BattleResult {
   const config = state._config;
@@ -27,13 +32,14 @@ function buildBattleResult(state: GameStateWithConfig): BattleResult {
     success: state.status === 'success',
     durationMs: Date.now() - state.levelStartTime,
     shuffleUsed: (config?.shuffleLimit ?? 0) - state.shuffleRemaining,
-    reviveUsed: 0,
+    reviveUsed: state.reviveUsed,
     hintUsed: (config?.hintLimit ?? 0) - state.hintRemaining,
     challengeDate: state.challengeDate,
   };
 }
 
 function saveProgress(state: GameStateWithConfig) {
+  const storage = getStorage();
   storage.setSavedGame({
     levelId: state.levelId,
     board: state.board,
@@ -47,21 +53,19 @@ function saveProgress(state: GameStateWithConfig) {
     _config: state._config,
   });
 
-  if (state.status === 'success' || state.status === 'failed') {
+  if (state.status === 'success' || (state.status === 'failed' && state.reviveState === 'none')) {
     const result = buildBattleResult(state);
+    const gameService = getGameService();
 
-    // Save to challenge store
-    const challengeStore = useChallengeStore.getState();
     if (state.mode === 'tutorial' && state.status === 'success') {
-      challengeStore.markTutorialComplete();
+      gameService.challenge.markTutorialComplete();
     }
     if (state.mode === 'daily_challenge') {
-      challengeStore.saveDailyResult(result);
+      gameService.challenge.saveResult(result);
     }
 
     storage.clearSavedGame();
 
-    // Legacy level records
     if (state.mode !== 'tutorial') {
       const existing = storage.getLevelRecord(state.levelId);
       const record = {
@@ -84,7 +88,6 @@ function saveProgress(state: GameStateWithConfig) {
       });
     }
 
-    // Track result
     if (state.mode === 'daily_challenge') {
       telemetry.track(state.status === 'success' ? 'daily_success' : 'daily_fail', {
         date: state.challengeDate,
@@ -93,6 +96,19 @@ function saveProgress(state: GameStateWithConfig) {
       });
     }
   }
+}
+
+function handleStatusChange(newState: GameStateWithConfig) {
+  // Auto-offer revive on failure
+  if (newState.status === 'failed' && newState.reviveState === 'none' && newState.reviveUsed < 1 && newState.mode === 'daily_challenge' && newState.failReason !== 'manual') {
+    const revived = offerRevive(newState);
+    if (revived.reviveState === 'offered') {
+      useGameStore.setState({ reviveState: 'offered' });
+      telemetry.track('revive_offer_shown', { date: newState.challengeDate, reason: newState.failReason });
+      return;
+    }
+  }
+  saveProgress(newState);
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -117,6 +133,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.status !== 'playing') return;
     const prevStatus = state.status;
     const prevState = state;
+
+    // Track match attempt when second tile is selected
+    if (state.selectedTileId && state.selectedTileId !== tileId) {
+      telemetry.track('match_attempt', { tileA: state.selectedTileId, tileB: tileId });
+    }
+
     const newState = selectTile(state, tileId);
     set(newState);
 
@@ -125,10 +147,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     if (newState.matchCount > prevState.matchCount) {
       telemetry.track('match_success', { tileA: prevState.selectedTileId, tileB: tileId });
+    } else if (prevState.selectedTileId && prevState.selectedTileId !== tileId && newState.selectedTileId === tileId) {
+      // Second tile selected but no match — match failed
+      telemetry.track('match_fail', { tileA: prevState.selectedTileId, tileB: tileId });
     }
 
     if (newState.status !== prevStatus || newState.matchCount !== prevState.matchCount) {
-      saveProgress(newState);
+      handleStatusChange(newState);
     }
   },
 
@@ -139,7 +164,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     telemetry.track('shuffle_used', { remaining: newState.shuffleRemaining });
     if (newState.status === 'failed') {
       telemetry.track('daily_fail', { reason: newState.failReason });
-      saveProgress(newState);
+      handleStatusChange(newState);
     }
   },
 
@@ -175,11 +200,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newState = { ...state, status: 'failed' as const, failReason: 'timeout' as const };
     set(newState);
     telemetry.track('daily_fail', { reason: 'timeout' });
-    saveProgress(newState);
+    handleStatusChange(newState);
+  },
+
+  offerReviveAction: () => {
+    const state = get();
+    const newState = offerRevive(state);
+    set(newState);
+    if (newState.reviveState === 'offered') {
+      telemetry.track('revive_offer_shown', { date: state.challengeDate, reason: state.failReason });
+    }
+  },
+
+  confirmReviveAction: () => {
+    const state = get();
+    // Set to ad_watching first, then confirm
+    const watchingState = { ...state, reviveState: 'ad_watching' as const };
+    const newState = confirmRevive(watchingState);
+    set(newState);
+    if (newState.reviveState === 'revived') {
+      telemetry.track('revive_used', { date: newState.challengeDate });
+    }
+  },
+
+  declineReviveAction: () => {
+    const state = get();
+    const newState = declineRevive(state);
+    set(newState);
+    // Now actually save the failed progress
+    if (newState.reviveState === 'none' && newState.status === 'failed') {
+      saveProgress(newState);
+    }
   },
 }));
 
 export function tryRestoreGame(): boolean {
+  const storage = getStorage();
   const saved = storage.getSavedGame() as GameStateWithConfig | null;
   if (saved && saved.status === 'playing') {
     useGameStore.setState(saved);
@@ -191,5 +247,3 @@ export function tryRestoreGame(): boolean {
   }
   return false;
 }
-
-export { storage };

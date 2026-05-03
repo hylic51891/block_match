@@ -30,6 +30,8 @@ export function createInitialState(): GameRuntimeState {
     levelStartTime: 0,
     mode: 'daily_challenge',
     timeLimit: 0,
+    reviveState: 'none',
+    reviveUsed: 0,
   };
 }
 
@@ -59,6 +61,8 @@ export function startChallenge(_state: GameRuntimeState, mode: GameMode, date?: 
     mode,
     challengeDate: mode === 'daily_challenge' ? (date ?? new Date().toISOString().slice(0, 10)) : undefined,
     timeLimit: config.timeLimit ?? 0,
+    reviveState: 'none',
+    reviveUsed: 0,
     _config: config,
   };
 }
@@ -81,6 +85,8 @@ export function startLevel(_state: GameRuntimeState, levelId: string): GameState
     levelStartTime: Date.now(),
     mode: 'daily_challenge',
     timeLimit: config.timeLimit ?? 0,
+    reviveState: 'none',
+    reviveUsed: 0,
     _config: config,
   };
 }
@@ -244,4 +250,32 @@ export function resetLevel(state: GameStateWithConfig): GameStateWithConfig {
     return startLevel(createInitialState(), state.levelId);
   }
   return createInitialState();
+}
+
+export function offerRevive(state: GameStateWithConfig): GameStateWithConfig {
+  // Only offer revive for failed daily_challenge, at most once per game
+  if (state.status !== 'failed') return state;
+  if (state.reviveUsed >= 1) return state;
+  if (state.mode !== 'daily_challenge') return state;
+  if (state.failReason === 'manual') return state;
+  return { ...state, reviveState: 'offered' };
+}
+
+export function confirmRevive(state: GameStateWithConfig): GameStateWithConfig {
+  if (state.reviveState !== 'ad_watching') return state;
+  return {
+    ...state,
+    status: 'playing',
+    failReason: undefined,
+    reviveState: 'revived',
+    reviveUsed: state.reviveUsed + 1,
+    shuffleRemaining: state.shuffleRemaining + 1,
+    timeLimit: 60,
+    levelStartTime: Date.now(),
+  };
+}
+
+export function declineRevive(state: GameStateWithConfig): GameStateWithConfig {
+  if (state.reviveState !== 'offered') return state;
+  return { ...state, reviveState: 'none' };
 }
