@@ -2,192 +2,181 @@
 
 ## 2.1 AI 开发目标声明
 
-你正在开发一个名为《回路连连看》的益智小游戏 MVP。
-你必须遵守以下核心目标：
+你正在开发《回路连连看》的微信小游戏正式化版本。项目已完成 MVP（一期）和挑战制改造（二期），当前目标已升级为：
 
-1. 先做本地可玩版本
-2. 不依赖微信小游戏平台能力
-3. 不强依赖后端
-4. 核心玩法逻辑必须先于 UI 完成
-5. 所有核心逻辑必须可测试
-6. 项目必须具备后续迁移到微信小游戏的潜力
+> 开发一个 **完整的、可在微信小游戏运行** 的项目，保留"教学关 + 每日挑战"的挑战制产品形态，并建立跨平台适配架构。
+
+你必须遵守以下总目标：
+
+1. 保留现有核心玩法能力（路径判定、污染机制、灵能图块、限时机制）
+2. 主流程保持挑战制（教学关 + 每日挑战）
+3. 新增微信小游戏适配层
+4. 保留 Web 环境用于调试和测试
+5. 为分享、广告、登录、排行榜预留清晰接口
+6. 文档、架构、任务拆分全部围绕"微信小游戏完整项目"组织
 
 ---
 
 ## 2.2 AI 开发硬约束
 
 ### 2.2.1 架构约束
-- 核心玩法逻辑必须位于 `core/`
-- 路径判定不得写在 React 组件中
-- Canvas 渲染不得修改核心游戏状态
-- 关卡必须配置化
-- 所有核心规则模块优先纯函数实现
+- 核心玩法逻辑必须继续位于 `core/`
+- 平台差异必须通过 adapter / platform 层收敛
+- 不允许把微信 API 直接散落到核心规则代码中
+- Web 与微信小游戏必须共用主要玩法逻辑
+- 挑战制逻辑必须显式建模为模式系统，而不是在页面中硬编码
 
 ### 2.2.2 代码约束
 - TypeScript 严格模式
 - 尽量避免 `any`
-- 每个文件单一职责
-- 每个核心模块必须有明确输入输出
-- 函数式逻辑优先
-- 不允许在 UI 组件中混杂复杂业务流程
+- 每个模块单一职责
+- 新增平台能力必须有降级或 mock 方案
+- 文件改动要优先局部、可验证、可回归
 
 ### 2.2.3 测试约束
-以下模块必须有单元测试：
+必须确保以下两类测试都能持续运行：
+
+- **核心逻辑测试**：继续在 Web/Node 环境跑
+- **平台适配验证**：提供 mock 或最小运行验证
+
+以下模块必须保持测试可运行：
 - PathFinder
 - MatchResolver
 - DeadlockDetector
 - ShuffleManager
 - PollutionSystem
 - WinLoseChecker
+- HintManager
+- DailyChallengeProvider
+- TutorialLevelProvider
+- LocalProgress migration
 
 ### 2.2.4 可观测性约束
-以下事件必须可记录：
-- level_loaded
-- tile_selected
-- match_attempt
-- match_success
-- match_fail
-- shuffle_used
-- level_success
-- level_failed
-- pollution_applied
-- deadlock_detected
+以下事件必须可记录，并区分模式：
+- app_open
+- tutorial_enter / tutorial_complete
+- daily_challenge_enter / daily_challenge_start
+- match_attempt / match_success / match_fail
+- shuffle_used / hint_used
+- daily_success / daily_fail / daily_retry
+- result_share_click
+- timeout（限时超时）
 
 ---
 
-## 2.3 AI 开发优先级
+## 2.3 当前开发范围边界
 
-### P0
-- 类型定义
-- 棋盘模型
-- 关卡配置
-- 路径判定
-- 匹配消除
-- 通关失败判定
+### 本阶段必须做
+- 微信小游戏平台适配方案
+- 巩固挑战制产品结构
+- Web + 微信小游戏双环境开发策略
+- 第三期任务拆分
 
-### P1
-- 重排
-- 污染系统
-- 场景切换
-- 本地存档
-- 调试面板
+### 本阶段建议做
+- 分享 payload 抽象
+- 激励广告触发点设计
+- 微信登录/开放数据域/排行榜协议预留
+- 每日挑战远端配置协议
 
-### P2
-- 提示系统
-- 动画
-- 音效
-- 基础埋点
-- 可观测性增强
+### 本阶段不强制一次做完
+- 完整后端
+- 复杂活动系统
+- 强社交系统
+- 复杂付费系统
 
 ---
 
-## 2.4 AI 开发范围边界
+## 2.4 产品主结构
 
-### 本阶段要做
-- Web 端本地可试玩
-- 最少 20 个关卡
-- 核心差异化机制：污染
-- 调试能力
-- 测试框架
-- 可观测性框架最小版本
+### 主流程
+```text
+首次进入 -> 教学关 -> 今日挑战 -> 结果页 -> 重试/分享
+后续进入 -> 今日挑战 -> 结果页 -> 重试/分享
+```
 
-### 本阶段不做
-- 微信登录
-- 分享
-- 激励广告
-- 排行榜
-- 服务端真实实现
-- 商业化
-- 复杂皮肤系统
+### 非主流程
+- 旧 20 关不作为主入口
+- 旧 20 关保留为测试/练习/回归素材池
 
 ---
 
-## 2.5 技术架构
+## 2.5 技术架构目标
 
-## 2.5.1 前端架构分层
-
-### app 层
-负责：
-- 启动
-- 路由
-- 全局配置
-
-### scenes 层
-负责页面和场景：
-- HomeScene
-- BattleScene
-- ResultScene
-
-### core 层
-负责纯玩法逻辑：
-- board
-- level
-- rules
-- systems
-- engine
-
-### render 层
-负责：
-- Canvas 绘制
-- 路径绘制
-- 效果绘制
-
-### store 层
-负责：
-- 游戏运行态
-- UI 状态
-
-### infra 层
-负责：
-- storage
-- logger
-- debug
-- telemetry
-
----
-
-## 2.5.2 推荐目录结构
-
+### 2.5.1 当前已实现架构
 ```text
 src/
-  app/
-  scenes/
+  app/                # 启动、路由
+  scenes/             # Home / Battle / Result
   core/
-    board/
-    level/
-    rules/
-    systems/
-    engine/
-  render/
-  store/
+    board/            # 棋盘模型 + 生成器
+    challenge/        # 教学关/每日挑战 Provider
+    level/            # 关卡加载 + 20关数据
+    rules/            # PathFinder + MatchResolver
+    systems/          # Deadlock / Shuffle / Pollution / Hint / WinLose
+    engine/           # GameEngine（状态机驱动）
+  render/             # Canvas 渲染器
+  store/              # game-store + challenge-store + ui-store
   infra/
-  utils/
-  hooks/
-  types/
-  assets/
-  tests/
+    storage/          # localStorage 存档
+    share/ad/leaderboard/remote-config  # 接口抽象 + Mock
+    logger / telemetry / error-reporter
+  hooks/              # Canvas / Click / GameLoop
+  components/         # BattleHUD / LevelCard / DebugPanel
+  types/              # 全局类型
+  assets/             # 颜色配置
+  tests/              # 83 个测试用例
 ```
+
+### 2.5.2 三期目标架构
+```text
+src/
+  app/                # 启动、路由、模式切换
+  scenes/             # Home / Tutorial / DailyChallenge / Result
+  core/               # 纯玩法逻辑（不变）
+  platform/           # Web / WeChat Mini Game 适配层
+  services/           # challenge、storage、share、ad、auth 抽象服务
+  store/              # runtime 与 UI 状态
+  infra/              # logger、telemetry、error-reporter
+  tests/              # 核心逻辑与集成测试
+```
+
+### 关键原则
+- `core/` 不依赖平台
+- `platform/` 负责输入、存储、分享、广告、登录等差异能力
+- `services/` 负责业务抽象，避免 scene 直接依赖平台 API
+
+### 平台分层
+
+#### WebAdapter
+- 浏览器调试
+- 本地测试
+- localStorage 存档
+- 假分享/假广告/假登录
+
+#### WeChatMiniGameAdapter
+- wx 生命周期适配
+- wx 存储
+- wx 分享
+- wx 激励广告
+- wx 登录能力接入
+- 后续开放数据域与排行榜能力预留
 
 ---
 
-## 2.6 数据模型
+## 2.6 产品模式建模
 
-### Point
 ```ts
-type Point = { x: number; y: number };
+type GameMode = 'tutorial' | 'daily_challenge' | 'practice';
 ```
 
-### Cell
-```ts
-type Cell = {
-  x: number;
-  y: number;
-  kind: 'empty' | 'tile' | 'obstacle' | 'pollution';
-  tileId?: string;
-  obstacleType?: 'rock';
-  pollutionExpireTurn?: number;
-};
-```
+说明：
+- `tutorial`：教学关（6×6，含 S + T 灵能图块教学）
+- `daily_challenge`：主玩法（10×8 或 12×10，限时 180 秒，S/T 各 2 对，污染 3~4 回合）
+- `practice`：旧 20 关可迁移为非主模式，当前可只保留内部使用
+
+---
+
+## 2.7 数据模型（当前已实现）
 
 ### Tile
 ```ts
@@ -196,17 +185,8 @@ type Tile = {
   type: string;
   x: number;
   y: number;
-  state: 'active' | 'selected' | 'removed';
-};
-```
-
-### BoardState
-```ts
-type BoardState = {
-  width: number;
-  height: number;
-  cells: Cell[][];
-  tiles: Record<string, Tile>;
+  state: 'active' | 'selected' | 'removing' | 'removed';
+  specialType?: 'S' | 'T';  // S=相位灵能, T=净化灵能
 };
 ```
 
@@ -218,18 +198,16 @@ type LevelConfig = {
   width: number;
   height: number;
   tileTypes: string[];
-  tileCountPerType: number;
-  obstacles: Array<{ x: number; y: number; type: 'rock' }>;
-  pollution: {
-    enabled: boolean;
-    durationTurns: number;
-  };
+  specialTypes: Array<'S' | 'T'>;
+  specialPairsPerType?: number;  // 每种灵能图块的对数，默认 1
+  fillBoard: boolean;
+  obstacles: ObstacleConfig[];
+  pollution: { enabled: boolean; durationTurns: number };
   shuffleLimit: number;
   target: { type: 'clear_all' };
-  tutorial?: {
-    title?: string;
-    message?: string;
-  };
+  hintLimit?: number;
+  timeLimit?: number;  // 限时秒数，undefined=无限制
+  tutorial?: { title?: string; message?: string };
 };
 ```
 
@@ -238,47 +216,86 @@ type LevelConfig = {
 type GameRuntimeState = {
   levelId: string;
   board: BoardState;
-  selectedTileId?: string;
+  selectedTileId: string | null;
   turn: number;
   shuffleRemaining: number;
+  hintRemaining: number;
   matchCount: number;
   status: 'idle' | 'loading' | 'playing' | 'checking' | 'success' | 'failed';
-  failReason?: 'deadlock' | 'no_shuffle' | 'manual' | 'unknown';
+  failReason?: 'deadlock' | 'pollution_blocked' | 'no_shuffle' | 'timeout' | 'manual' | 'unknown';
   lastPath: Point[];
+  levelStartTime: number;
+  mode: GameMode;
+  challengeDate?: ChallengeDate;
+  timeLimit: number;
+};
+```
+
+### BattleResult
+```ts
+type BattleResult = {
+  mode: GameMode;
+  success: boolean;
+  durationMs: number;
+  shuffleUsed: number;
+  reviveUsed: number;
+  hintUsed: number;
+  challengeDate?: ChallengeDate;
+};
+```
+
+### LocalProgress
+```ts
+type LocalProgress = {
+  tutorialCompleted: boolean;
+  lastChallengeDate?: ChallengeDate;
+  dailyBest?: Record<ChallengeDate, DailyChallengeRecord>;
+  settings: { audioEnabled: boolean };
 };
 ```
 
 ---
 
-## 2.7 核心规则
+## 2.8 核心规则（当前已实现）
 
 ### PathFinder
-- 最多 2 次转折
-- 不穿越障碍
-- 不穿越 active tile
-- 不穿越污染格
+- 默认最多 2 次转折，灵能图块 S 允许 3 折
+- 不穿越障碍、active tile
+- 灵能图块 S 可穿越污染格，普通图块和 T 不行
 - 不出棋盘
 
 ### MatchResolver
 - 只允许同类型图块匹配
-- 允许返回 path 和 turns
-- 失败原因必须结构化
+- S 图块匹配时路径不产生污染
+- T 图块匹配后触发净化
+
+### PollutionSystem
+- 匹配成功后对路径中间空格施加污染（S 匹配除外）
+- T 图块净化：清除路径周围曼哈顿距离 1 格内的污染
+- 回合推进时衰减污染
+- 死局检测可区分"污染封路"和"通用死局"
 
 ### DeadlockDetector
 - 检查当前是否至少有一组合法匹配
+- 支持灵能图块的特殊路径选项
 
 ### ShuffleManager
 - 重新分配剩余 active tile 位置
 - 不改变图块类型分布
 - 重排后必须至少存在一组合法匹配
 
-### PollutionSystem
-- 根据成功路径污染中间空格
-- 回合推进时衰减污染
+### HintManager
+- 消耗提示次数，返回一组可消图块 ID
+- 教学关不限制，每日挑战默认 0 次
+
+### WinLoseChecker
+- 全清 = 胜利
+- 死局 + 无重排 = 失败（区分 pollution_blocked / deadlock / no_shuffle）
+- 限时超时 = 失败（timeout）
 
 ---
 
-## 2.8 状态机
+## 2.9 状态机
 
 ### 顶层状态
 ```text
@@ -288,180 +305,88 @@ idle -> loading -> playing -> checking -> success/failed
 ### playing 子流程
 ```text
 select A -> select B -> resolve match
-  -> success: remove -> pollution -> turn+1 -> checking
+  -> success: remove -> pollution(skip if S) -> purify(if T) -> decay -> turn+1 -> checking
   -> fail: feedback -> continue playing
 ```
 
----
-
-## 2.9 数据库设计（未来扩展）
-
-### users
-```sql
-CREATE TABLE users (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  open_id VARCHAR(64) NOT NULL UNIQUE,
-  nickname VARCHAR(64) DEFAULT '',
-  avatar_url VARCHAR(255) DEFAULT '',
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL
-);
-```
-
-### user_progress
-```sql
-CREATE TABLE user_progress (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id BIGINT NOT NULL,
-  current_level_id VARCHAR(32) NOT NULL,
-  unlocked_level_count INT NOT NULL DEFAULT 1,
-  total_star INT NOT NULL DEFAULT 0,
-  updated_at DATETIME NOT NULL,
-  UNIQUE KEY uk_user (user_id)
-);
-```
-
-### level_configs
-```sql
-CREATE TABLE level_configs (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  level_id VARCHAR(32) NOT NULL UNIQUE,
-  version INT NOT NULL DEFAULT 1,
-  config_json JSON NOT NULL,
-  status TINYINT NOT NULL DEFAULT 1,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL
-);
-```
-
-### user_level_records
-```sql
-CREATE TABLE user_level_records (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id BIGINT NOT NULL,
-  level_id VARCHAR(32) NOT NULL,
-  best_score INT NOT NULL DEFAULT 0,
-  best_star INT NOT NULL DEFAULT 0,
-  success_count INT NOT NULL DEFAULT 0,
-  fail_count INT NOT NULL DEFAULT 0,
-  last_play_at DATETIME NULL,
-  UNIQUE KEY uk_user_level (user_id, level_id)
-);
-```
-
-### match_logs
-```sql
-CREATE TABLE match_logs (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id BIGINT NOT NULL,
-  level_id VARCHAR(32) NOT NULL,
-  result TINYINT NOT NULL,
-  duration_ms INT NOT NULL,
-  move_count INT NOT NULL,
-  shuffle_used INT NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL
-);
+### 失败原因
+```text
+deadlock          -- 通用死局（清除污染后仍无解）
+pollution_blocked -- 污染封路（清除污染后可解）
+no_shuffle        -- 重排用尽后仍死局
+timeout           -- 限时超时
+manual            -- 手动退出
 ```
 
 ---
 
-## 2.10 API 设计（未来扩展）
+## 2.10 第三期产品能力目标
 
-### 登录
-`POST /api/v1/auth/login`
+### P0
+- 微信小游戏平台适配层
+- 文档全量同步（overall_plan 融合更新）
 
-### 获取进度
-`GET /api/v1/progress`
+### P1
+- 分享数据结构
+- 广告触发点设计
+- 登录与挑战结果协议预留
 
-### 获取关卡列表
-`GET /api/v1/levels`
-
-### 获取单关配置
-`GET /api/v1/levels/{levelId}`
-
-### 提交结算
-`POST /api/v1/levels/{levelId}/settlement`
-
-### 上报事件
-`POST /api/v1/events/batch`
-
-### 统一返回结构
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {}
-}
-```
+### P2
+- 每日挑战远端下发
+- 排行榜
+- 广告真实接入
+- 开放数据域适配
 
 ---
 
-## 2.11 测试框架设计
+## 2.11 测试框架要求
 
 ### 单元测试
-使用 `Vitest`
-
-必须覆盖：
-- PathFinder
-- DeadlockDetector
-- ShuffleManager
-- PollutionSystem
-- WinLoseChecker
+继续保留当前核心规则测试（83 用例），并新增：
+- 平台 service mock 测试
 
 ### 集成测试
-验证：
-- 加载关卡 -> 点击图块 -> 消除 -> 通关/失败流程
-
-### UI/交互测试
-可选使用：
-- React Testing Library
-- Playwright
+需要新增：
+- 微信小游戏适配层编译验证
+- 平台接口调用不污染核心规则模块
 
 ### 回归测试
 要求 AI 在修改核心逻辑后必须执行：
 - `npm run test`
-- 对关键场景至少手工试玩 3 关
+- 对关键场景至少手工试玩
 
 ---
 
-## 2.12 可观测性框架设计
-
-### 最小日志体系
-创建 `infra/logger.ts`
-
-支持：
-- debug
-- info
-- warn
-- error
-
-### 最小事件埋点体系
-创建 `infra/telemetry.ts`
-
-事件结构：
-```ts
-type TelemetryEvent = {
-  event: string;
-  timestamp: number;
-  payload?: Record<string, unknown>;
-};
-```
+## 2.12 可观测性要求
 
 ### 必埋事件
-- level_loaded
-- level_started
-- tile_selected
-- match_attempt
-- match_success
-- match_fail
-- pollution_applied
-- shuffle_used
-- deadlock_detected
-- level_success
-- level_failed
+- app_open
+- tutorial_enter / tutorial_complete
+- daily_challenge_enter / daily_challenge_start
+- tile_selected / match_success / match_fail
+- shuffle_used / hint_used
+- daily_success / daily_fail / daily_retry
+- result_share_click
 
 ### 错误观测
-必须有统一异常上报入口：
-- render error
-- core logic assertion error
-- storage parse error
+必须区分：
+- 核心逻辑错误
+- 平台适配错误
+- 存档解析错误
+- 挑战配置加载错误
+
+---
+
+## 2.13 AI 的交付要求
+
+你在第三期中输出的内容必须至少包括：
+
+1. 更新后的 docs 总览文档
+2. 第三期 PRD 文档
+3. 第三期开发计划文档
+4. 如果涉及平台改造，必须说明新增/修改文件边界
+5. 若改造了存档结构，必须说明迁移方案
+6. 若设计了微信小游戏能力，必须区分：
+   - 当前实现
+   - 接口预留
+   - 后续接入
