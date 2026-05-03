@@ -75,3 +75,37 @@ export function clearAllPollution(board: BoardState): BoardState {
   }
   return newBoard;
 }
+
+/**
+ * Purify pollution around a match path (T tile ability).
+ * For each point in the path, clear pollution in adjacent cells (radius 1).
+ */
+export function purifyAroundPath(board: BoardState, path: Point[]): BoardState {
+  let newBoard = board;
+  const visited = new Set<string>();
+
+  /** Manhattan-distance offsets: up, down, left, right */
+  const manhattanOffsets = [
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 0 },
+  ];
+
+  for (const point of path) {
+    for (const { dx, dy } of manhattanOffsets) {
+      const nx = point.x + dx;
+      const ny = point.y + dy;
+      const key = `${nx},${ny}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      const cell = getCell(board, nx, ny);
+      if (cell && cell.kind === 'pollution') {
+        newBoard = setCell(newBoard, nx, ny, { x: nx, y: ny, kind: 'empty' });
+      }
+    }
+  }
+
+  return newBoard;
+}

@@ -1,14 +1,18 @@
 import type { Point } from '@/types/common';
 import type { GameRuntimeState, GameStatus } from '@/types/game';
 import type { LevelConfig } from '@/types/level';
+import type { GameMode, ChallengeDate } from '@/types/challenge';
 import { createEmptyBoard, removeTile, setTileState } from '@/core/board/board-model';
 import { generateBoard } from '@/core/board/board-generator';
 import { loadLevel } from '@/core/level/level-loader';
+import { getTutorialLevelConfig } from '@/core/challenge/tutorial-provider';
+import { getDailyChallengeConfig } from '@/core/challenge/daily-provider';
 import { resolveMatch } from '@/core/rules/match-resolver';
 import { checkWin, checkLose } from '@/core/systems/win-lose-checker';
 import { isDeadlocked } from '@/core/systems/deadlock-detector';
 import { shuffle } from '@/core/systems/shuffle-manager';
-import { applyPollution, decayPollution } from '@/core/systems/pollution-system';
+import { applyPollution, decayPollution, purifyAroundPath } from '@/core/systems/pollution-system';
+import { useHint as hintManagerUseHint, getHintPair as hintManagerGetHintPair } from '@/core/systems/hint-manager';
 
 export type GameStateWithConfig = GameRuntimeState & { _config?: LevelConfig };
 
@@ -19,13 +23,47 @@ export function createInitialState(): GameRuntimeState {
     selectedTileId: null,
     turn: 0,
     shuffleRemaining: 0,
+    hintRemaining: 0,
     matchCount: 0,
     status: 'idle',
     lastPath: [],
     levelStartTime: 0,
+    mode: 'daily_challenge',
+    timeLimit: 0,
   };
 }
 
+function loadConfigForMode(mode: GameMode, date?: ChallengeDate): LevelConfig {
+  if (mode === 'tutorial') {
+    return getTutorialLevelConfig();
+  }
+  const challengeDate = date ?? new Date().toISOString().slice(0, 10);
+  return getDailyChallengeConfig(challengeDate);
+}
+
+export function startChallenge(_state: GameRuntimeState, mode: GameMode, date?: ChallengeDate): GameStateWithConfig {
+  const config = loadConfigForMode(mode, date);
+  const board = generateBoard(config);
+
+  return {
+    levelId: config.id,
+    board,
+    selectedTileId: null,
+    turn: 0,
+    shuffleRemaining: config.shuffleLimit,
+    hintRemaining: config.hintLimit ?? 0,
+    matchCount: 0,
+    status: 'playing',
+    lastPath: [],
+    levelStartTime: Date.now(),
+    mode,
+    challengeDate: mode === 'daily_challenge' ? (date ?? new Date().toISOString().slice(0, 10)) : undefined,
+    timeLimit: config.timeLimit ?? 0,
+    _config: config,
+  };
+}
+
+// Legacy: keep startLevel for backward compatibility with 20-level data
 export function startLevel(_state: GameRuntimeState, levelId: string): GameStateWithConfig {
   const config = loadLevel(levelId);
   const board = generateBoard(config);
@@ -36,10 +74,13 @@ export function startLevel(_state: GameRuntimeState, levelId: string): GameState
     selectedTileId: null,
     turn: 0,
     shuffleRemaining: config.shuffleLimit,
+    hintRemaining: config.hintLimit ?? 0,
     matchCount: 0,
     status: 'playing',
     lastPath: [],
     levelStartTime: Date.now(),
+    mode: 'daily_challenge',
+    timeLimit: config.timeLimit ?? 0,
     _config: config,
   };
 }
@@ -70,7 +111,6 @@ export function selectTile(state: GameStateWithConfig, tileId: string): GameStat
   }
 
   // Two tiles selected -> try to match
-  // Reset first tile to active state for path finding (it was marked 'selected')
   const boardForMatch = setTileState(state.board, state.selectedTileId, 'active');
   const firstTile = boardForMatch.tiles[state.selectedTileId]!;
   const matchResult = resolveMatch(boardForMatch, firstTile, tile);
@@ -95,18 +135,24 @@ export function selectTile(state: GameStateWithConfig, tileId: string): GameStat
   newBoard = removeTile(newBoard, firstTile.id);
   newBoard = removeTile(newBoard, tile.id);
 
-  // Apply pollution if enabled
-  const currentTurn = state.turn;
-
-  // Build full path including start and end for display
+  // Build full display path
   const fullDisplayPath: Point[] = [
     { x: firstTile.x, y: firstTile.y },
     ...matchResult.path,
     { x: tile.x, y: tile.y },
   ];
 
-  if (config?.pollution.enabled && matchResult.path.length > 0) {
+  // Apply pollution if enabled (S tiles can pass through pollution, so their paths don't create it)
+  const currentTurn = state.turn;
+  const hasPhaseTile = firstTile.specialType === 'S' || tile.specialType === 'S';
+
+  if (config?.pollution.enabled && matchResult.path.length > 0 && !hasPhaseTile) {
     newBoard = applyPollution(newBoard, matchResult.path, currentTurn, config.pollution.durationTurns);
+  }
+
+  // T tile purification: after match, clear pollution around path (at least one T)
+  if ((firstTile.specialType === 'T' || tile.specialType === 'T') && matchResult.path.length > 0) {
+    newBoard = purifyAroundPath(newBoard, matchResult.path);
   }
 
   // Advance turn
@@ -120,6 +166,7 @@ export function selectTile(state: GameStateWithConfig, tileId: string): GameStat
   // Check win/lose
   const newMatchCount = state.matchCount + 1;
   let newStatus: GameStatus = 'playing';
+  let failReason: import('@/types/game').FailReason | undefined;
 
   if (checkWin(newBoard)) {
     newStatus = 'success';
@@ -127,6 +174,7 @@ export function selectTile(state: GameStateWithConfig, tileId: string): GameStat
     const loseCheck = checkLose(newBoard, state.shuffleRemaining);
     if (loseCheck.lost) {
       newStatus = 'failed';
+      failReason = loseCheck.reason ?? 'deadlock';
     }
   }
 
@@ -137,7 +185,7 @@ export function selectTile(state: GameStateWithConfig, tileId: string): GameStat
     turn: nextTurn,
     matchCount: newMatchCount,
     status: newStatus,
-    failReason: newStatus === 'failed' ? 'deadlock' : undefined,
+    failReason,
     lastPath: fullDisplayPath,
   };
 }
@@ -156,7 +204,7 @@ export function useShuffle(state: GameStateWithConfig): GameStateWithConfig {
       board: newBoard,
       shuffleRemaining: newShuffleRemaining,
       status: 'failed',
-      failReason: 'deadlock',
+      failReason: 'no_shuffle',
     };
   }
 
@@ -168,7 +216,32 @@ export function useShuffle(state: GameStateWithConfig): GameStateWithConfig {
   };
 }
 
+export function useHint(state: GameStateWithConfig): GameStateWithConfig {
+  if (state.status !== 'playing') return state;
+
+  const result = hintManagerUseHint(state.board, state.hintRemaining);
+  if (!result.pair) return state;
+
+  return {
+    ...state,
+    hintRemaining: result.hintRemaining,
+  };
+}
+
+export function getHintPair(state: GameStateWithConfig): [string, string] | null {
+  return hintManagerGetHintPair(state.board);
+}
+
 export function resetLevel(state: GameStateWithConfig): GameStateWithConfig {
-  if (!state.levelId) return createInitialState();
-  return startLevel(createInitialState(), state.levelId);
+  if (state.mode === 'tutorial') {
+    return startChallenge(createInitialState(), 'tutorial');
+  }
+  if (state.mode === 'daily_challenge' && state.challengeDate) {
+    return startChallenge(createInitialState(), 'daily_challenge', state.challengeDate);
+  }
+  // Legacy
+  if (state.levelId) {
+    return startLevel(createInitialState(), state.levelId);
+  }
+  return createInitialState();
 }

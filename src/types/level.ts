@@ -1,3 +1,5 @@
+import type { SpecialType } from './board';
+
 export type ObstacleConfig = {
   x: number;
   y: number;
@@ -19,13 +21,18 @@ export type LevelConfig = {
   width: number;
   height: number;
   tileTypes: string[];
-  /** Special tile types that can pass through pollution and get one extra turn */
-  specialTypes: string[];
+  /** Special tile types: S = phase, T = purify */
+  specialTypes: Array<SpecialType>;
+  /** Number of pairs per special type (default: 1) */
+  specialPairsPerType?: number;
   fillBoard: boolean;
   obstacles: ObstacleConfig[];
   pollution: PollutionConfig;
   shuffleLimit: number;
   target: TargetConfig;
+  hintLimit?: number;
+  /** Time limit in seconds (undefined = no limit) */
+  timeLimit?: number;
   tutorial?: {
     title?: string;
     message?: string;

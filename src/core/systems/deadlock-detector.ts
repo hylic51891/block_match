@@ -10,6 +10,17 @@ export function isDeadlocked(board: BoardState): boolean {
   return findAnyValidPair(board) === null;
 }
 
+function getSpecialPathOptions(a: Tile, b: Tile): { canPassPollution: boolean; extraTurns: number } {
+  const isBothS = a.specialType === 'S' && b.specialType === 'S';
+  const isBothT = a.specialType === 'T' && b.specialType === 'T';
+  const isMixedSpecial = !!a.specialType && !!b.specialType && a.specialType !== b.specialType;
+
+  if (isBothS) return { canPassPollution: true, extraTurns: 1 };
+  if (isBothT) return { canPassPollution: false, extraTurns: 0 };
+  if (isMixedSpecial) return { canPassPollution: true, extraTurns: 1 };
+  return { canPassPollution: false, extraTurns: 0 };
+}
+
 export function findAnyValidPair(board: BoardState): [Tile, Tile] | null {
   const activeTiles = getActiveTiles(board);
 
@@ -28,8 +39,8 @@ export function findAnyValidPair(board: BoardState): [Tile, Tile] | null {
         const b = tiles[j]!;
         const start: Point = { x: a.x, y: a.y };
         const end: Point = { x: b.x, y: b.y };
-        const isSpecial = a.special && b.special;
-        const result = findPath(board, start, end, { canPassPollution: isSpecial });
+        const opts = getSpecialPathOptions(a, b);
+        const result = findPath(board, start, end, opts);
         if (result.found) return [a, b];
       }
     }

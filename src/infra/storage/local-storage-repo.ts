@@ -1,7 +1,12 @@
-import type { IStorageRepository, UserProgress, LevelRecord, MatchLog, TelemetryEvent } from './types';
+import type { IStorageRepository, UserProgress, LevelRecord, MatchLog, TelemetryEvent, LocalProgress } from './types';
 
 const PREFIX = 'cl_';
 const MAX_LOGS = 1000;
+
+const DEFAULT_LOCAL_PROGRESS: LocalProgress = {
+  tutorialCompleted: false,
+  settings: { audioEnabled: true },
+};
 
 export class LocalStorageRepository implements IStorageRepository {
   private get<T>(key: string): T | null {
@@ -79,5 +84,20 @@ export class LocalStorageRepository implements IStorageRepository {
 
   clearSavedGame(): void {
     localStorage.removeItem(PREFIX + 'saved_game');
+  }
+
+  getLocalProgress(): LocalProgress {
+    const saved = this.get<LocalProgress>('local_progress');
+    if (!saved) return { ...DEFAULT_LOCAL_PROGRESS };
+    // Merge with defaults for forward compatibility
+    return {
+      ...DEFAULT_LOCAL_PROGRESS,
+      ...saved,
+      settings: { ...DEFAULT_LOCAL_PROGRESS.settings, ...saved.settings },
+    };
+  }
+
+  setLocalProgress(progress: LocalProgress): void {
+    this.set('local_progress', progress);
   }
 }

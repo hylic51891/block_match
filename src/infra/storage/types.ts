@@ -1,3 +1,5 @@
+import type { ChallengeDate, DailyChallengeRecord } from '@/types/challenge';
+
 export type UserProgress = {
   currentLevelId: string;
   unlockedLevelCount: number;
@@ -29,7 +31,15 @@ export type TelemetryEvent = {
   payload?: Record<string, unknown>;
 };
 
+export type LocalProgress = {
+  tutorialCompleted: boolean;
+  lastChallengeDate?: ChallengeDate;
+  dailyBest?: Record<ChallengeDate, DailyChallengeRecord>;
+  settings: { audioEnabled: boolean };
+};
+
 export interface IStorageRepository {
+  // Legacy (kept for compatibility)
   getUserProgress(): UserProgress | null;
   setUserProgress(progress: UserProgress): void;
 
@@ -46,4 +56,8 @@ export interface IStorageRepository {
   getSavedGame(): unknown | null;
   setSavedGame(state: unknown): void;
   clearSavedGame(): void;
+
+  // New: challenge-based progress
+  getLocalProgress(): LocalProgress;
+  setLocalProgress(progress: LocalProgress): void;
 }

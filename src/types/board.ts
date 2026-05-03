@@ -11,14 +11,16 @@ export type Cell = {
 
 export type TileState = 'active' | 'selected' | 'removing' | 'removed';
 
+export type SpecialType = 'S' | 'T';
+
 export type Tile = {
   id: string;
   type: string;
   x: number;
   y: number;
   state: TileState;
-  /** Special tiles can pass through pollution and get one extra turn */
-  special: boolean;
+  /** Special tile type: S = phase (pass pollution + extra turn), T = purify (clear pollution around path) */
+  specialType?: SpecialType;
 };
 
 export type BoardState = {

@@ -14,7 +14,7 @@ function makeBoardWithTiles(
   for (const t of tiles) {
     const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
     board = setCell(board, t.x, t.y, cell);
-    board.tiles[t.id] = { id: t.id, type: 'A', x: t.x, y: t.y, state: 'active', special: false };
+    board.tiles[t.id] = { id: t.id, type: 'A', x: t.x, y: t.y, state: 'active' };
   }
   for (const o of obstacles) {
     board = setCell(board, o.x, o.y, { x: o.x, y: o.y, kind: 'obstacle', obstacleType: 'rock' });

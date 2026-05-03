@@ -1,4 +1,4 @@
-import type { BoardState } from '@/types/board';
+import type { BoardState, SpecialType } from '@/types/board';
 import type { LevelConfig } from '@/types/level';
 import { createEmptyBoard, setCell, getActiveTiles } from './board-model';
 import { isDeadlocked } from '@/core/systems/deadlock-detector';
@@ -53,43 +53,43 @@ function generateBoardOnce(config: LevelConfig): BoardState {
   const totalSlots = availablePositions.length;
 
   if (config.fillBoard) {
-    // Fill all slots: total must be even, each type must appear even times
-    // Distribute tile types evenly across all slots
-    const normalTypes = config.tileTypes.filter((t) => !config.specialTypes.includes(t));
+    const normalTypes = config.tileTypes.filter((t) => !config.specialTypes.includes(t as SpecialType));
     const specialTypes = config.specialTypes;
 
-    // Allocate ~20% of slots to special types (2 of each special type = 1 pair)
-    const specialPerType = 2; // Each special type appears as 1 pair
+    // Each special type appears as N pairs (2*N tiles), default N=1
+    const specialPairs = config.specialPairsPerType ?? 1;
+    const specialPerType = specialPairs * 2;
     let specialCount = specialTypes.length * specialPerType;
-    if (specialCount % 2 !== 0) specialCount++; // ensure even
+    if (specialCount % 2 !== 0) specialCount++;
 
     const normalSlots = totalSlots - specialCount;
     const normalTypesCount = normalTypes.length;
     const perNormalType = Math.floor(normalSlots / normalTypesCount);
-    // Adjust to ensure total is even and fills board
     let remaining = totalSlots - specialCount - perNormalType * normalTypesCount;
 
-    const tileList: Array<{ type: string; special: boolean }> = [];
+    const tileList: Array<{ type: string; specialType?: SpecialType }> = [];
 
-    // Add special tiles
+    // Add special tiles (N pairs per type)
     for (const st of specialTypes) {
-      tileList.push({ type: st, special: true });
-      tileList.push({ type: st, special: true });
+      for (let i = 0; i < specialPairs; i++) {
+        tileList.push({ type: st, specialType: st });
+        tileList.push({ type: st, specialType: st });
+      }
     }
 
     // Add normal tiles
     for (const nt of normalTypes) {
       for (let i = 0; i < perNormalType; i++) {
-        tileList.push({ type: nt, special: false });
+        tileList.push({ type: nt });
       }
     }
 
-    // Distribute remaining slots (always even number)
+    // Distribute remaining slots
     let idx = 0;
     while (remaining >= 2) {
       const nt = normalTypes[idx % normalTypesCount]!;
-      tileList.push({ type: nt, special: false });
-      tileList.push({ type: nt, special: false });
+      tileList.push({ type: nt });
+      tileList.push({ type: nt });
       remaining -= 2;
       idx++;
     }
@@ -109,7 +109,14 @@ function generateBoardOnce(config: LevelConfig): BoardState {
       const entry = tileList[i]!;
       const id = nextTileId();
 
-      const tile = { id, type: entry.type, x: pos.x, y: pos.y, state: 'active' as const, special: entry.special };
+      const tile = {
+        id,
+        type: entry.type,
+        x: pos.x,
+        y: pos.y,
+        state: 'active' as const,
+        ...(entry.specialType ? { specialType: entry.specialType } : {}),
+      };
       tiles[id] = tile;
 
       board = setCell(board, pos.x, pos.y, {
@@ -123,11 +130,11 @@ function generateBoardOnce(config: LevelConfig): BoardState {
     return { ...board, tiles };
   }
 
-  // Legacy: non-fill mode (shouldn't be used anymore but kept for compatibility)
+  // Legacy: non-fill mode
   const tileTypes: string[] = [];
   for (const type of config.tileTypes) {
     tileTypes.push(type);
-    tileTypes.push(type); // pairs
+    tileTypes.push(type);
   }
 
   for (let i = tileTypes.length - 1; i > 0; i--) {
@@ -143,7 +150,7 @@ function generateBoardOnce(config: LevelConfig): BoardState {
     const type = tileTypes[i]!;
     const id = nextTileId();
 
-    const tile = { id, type, x: pos.x, y: pos.y, state: 'active' as const, special: false };
+    const tile = { id, type, x: pos.x, y: pos.y, state: 'active' as const };
     tiles[id] = tile;
 
     board = setCell(board, pos.x, pos.y, {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { checkWin, checkLose } from '@/core/systems/win-lose-checker';
-import { createSimpleBoard, createClearedBoard, createDeadlockedBoard } from '@/tests/fixtures/boards';
+import { createSimpleBoard, createClearedBoard, createDeadlockedBoard, createPollutionBlockedBoard } from '@/tests/fixtures/boards';
 
 describe('WinLoseChecker', () => {
   it('cleared board is a win', () => {
@@ -13,11 +13,18 @@ describe('WinLoseChecker', () => {
     expect(checkWin(board)).toBe(false);
   });
 
-  it('deadlocked board with no shuffle is a loss', () => {
+  it('deadlocked board with no shuffle returns deadlock', () => {
     const board = createDeadlockedBoard();
     const result = checkLose(board, 0);
     expect(result.lost).toBe(true);
     expect(result.reason).toBe('deadlock');
+  });
+
+  it('pollution-blocked board with no shuffle returns pollution_blocked', () => {
+    const board = createPollutionBlockedBoard();
+    const result = checkLose(board, 0);
+    expect(result.lost).toBe(true);
+    expect(result.reason).toBe('pollution_blocked');
   });
 
   it('deadlocked board with shuffle remaining is not a loss', () => {

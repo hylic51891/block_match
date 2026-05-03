@@ -1,4 +1,5 @@
 import type { Point } from './common';
+import type { GameMode, ChallengeDate } from './challenge';
 
 export type GameStatus =
   | 'idle'
@@ -8,7 +9,7 @@ export type GameStatus =
   | 'success'
   | 'failed';
 
-export type FailReason = 'deadlock' | 'no_shuffle' | 'manual' | 'unknown';
+export type FailReason = 'deadlock' | 'pollution_blocked' | 'no_shuffle' | 'timeout' | 'manual' | 'unknown';
 
 export type PathFailReason =
   | 'no_path'
@@ -32,9 +33,14 @@ export type GameRuntimeState = {
   selectedTileId: string | null;
   turn: number;
   shuffleRemaining: number;
+  hintRemaining: number;
   matchCount: number;
   status: GameStatus;
   failReason?: FailReason;
   lastPath: Point[];
   levelStartTime: number;
+  mode: GameMode;
+  challengeDate?: ChallengeDate;
+  /** Time limit in seconds (0 or undefined = no limit) */
+  timeLimit: number;
 };

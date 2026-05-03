@@ -1,24 +1,25 @@
 import { create } from 'zustand';
+import type { GameMode } from '@/types/challenge';
 
 type Scene = 'home' | 'battle' | 'result';
 
 interface UIStore {
   scene: Scene;
   debugOpen: boolean;
-  selectedLevelId: string | null;
+  currentMode: GameMode;
   navigateTo: (scene: Scene) => void;
   toggleDebug: () => void;
-  setSelectedLevelId: (id: string | null) => void;
+  setCurrentMode: (mode: GameMode) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
   scene: 'home',
   debugOpen: false,
-  selectedLevelId: null,
+  currentMode: 'daily_challenge',
 
   navigateTo: (scene: Scene) => set({ scene }),
 
   toggleDebug: () => set((s) => ({ debugOpen: !s.debugOpen })),
 
-  setSelectedLevelId: (id: string | null) => set({ selectedLevelId: id }),
+  setCurrentMode: (mode: GameMode) => set({ currentMode: mode }),
 }));

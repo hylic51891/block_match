@@ -1,4 +1,5 @@
 import type { LevelConfig } from '@/types/level';
+import type { SpecialType } from '@/types/board';
 
 function makeLevel(
   id: number,
@@ -6,7 +7,7 @@ function makeLevel(
   width: number,
   height: number,
   tileTypes: string[],
-  specialTypes: string[],
+  specialTypes: Array<SpecialType>,
   obstacles: LevelConfig['obstacles'],
   pollution: LevelConfig['pollution'],
   shuffleLimit: number,

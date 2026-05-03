@@ -4,8 +4,10 @@ import type { PathResult } from '@/types/game';
 import { isCellPassable } from '@/core/board/board-model';
 
 export type PathFindOptions = {
-  /** If true, pollution cells are treated as passable and max turns is 3 instead of 2 */
+  /** If true, pollution cells are treated as passable */
   canPassPollution?: boolean;
+  /** Extra turns allowed beyond the default 2 */
+  extraTurns?: number;
 };
 
 /**
@@ -18,7 +20,8 @@ export function findPath(board: BoardState, start: Point, end: Point, options?: 
     return { found: false, reason: 'no_path' };
   }
 
-  const maxTurns = options?.canPassPollution ? 3 : 2;
+  const baseMaxTurns = 2 + (options?.extraTurns ?? 0);
+  const maxTurns = options?.canPassPollution ? Math.max(baseMaxTurns, 3) : baseMaxTurns;
   const isPassable = (x: number, y: number) => {
     if (options?.canPassPollution) {
       // Can pass through pollution cells

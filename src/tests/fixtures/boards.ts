@@ -21,7 +21,7 @@ export function createSimpleBoard(): BoardState {
   for (const t of layout) {
     const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
     board = setCell(board, t.x, t.y, cell);
-    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', special: false };
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active' };
   }
   return board;
 }
@@ -43,7 +43,7 @@ export function createBoardWithObstacles(): BoardState {
   for (const t of layout) {
     const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
     board = setCell(board, t.x, t.y, cell);
-    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', special: false };
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active' };
   }
   return board;
 }
@@ -63,7 +63,7 @@ export function createBoardWithPollution(): BoardState {
   for (const t of layout) {
     const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
     board = setCell(board, t.x, t.y, cell);
-    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', special: false };
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active' };
   }
   return board;
 }
@@ -84,7 +84,7 @@ export function createDeadlockedBoard(): BoardState {
   for (const t of layout) {
     const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
     board = setCell(board, t.x, t.y, cell);
-    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', special: false };
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active' };
   }
   return board;
 }
@@ -94,4 +94,70 @@ export function createDeadlockedBoard(): BoardState {
  */
 export function createClearedBoard(): BoardState {
   return createEmptyBoard(4, 4);
+}
+
+/**
+ * Create a board with S-type special tiles.
+ */
+export function createBoardWithSpecialS(): BoardState {
+  let board = createEmptyBoard(4, 4);
+  board = setCell(board, 1, 0, { x: 1, y: 0, kind: 'pollution', pollutionExpireTurn: 99 });
+  board = setCell(board, 2, 0, { x: 2, y: 0, kind: 'pollution', pollutionExpireTurn: 99 });
+
+  const layout = [
+    { x: 0, y: 0, id: 't1', type: 'S' },
+    { x: 3, y: 0, id: 't2', type: 'S' },
+  ];
+  for (const t of layout) {
+    const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
+    board = setCell(board, t.x, t.y, cell);
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', specialType: 'S' as const };
+  }
+  return board;
+}
+
+/**
+ * Create a board with T-type special tiles.
+ */
+export function createBoardWithSpecialT(): BoardState {
+  let board = createEmptyBoard(4, 4);
+
+  const layout = [
+    { x: 0, y: 0, id: 't1', type: 'T' },
+    { x: 3, y: 0, id: 't2', type: 'T' },
+  ];
+  for (const t of layout) {
+    const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
+    board = setCell(board, t.x, t.y, cell);
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', specialType: 'T' as const };
+  }
+  return board;
+}
+
+/**
+ * Create a board where tiles are blocked by pollution.
+ * Removing pollution makes the board solvable.
+ * Layout: t1(A) at (0,1), t2(A) at (3,1)
+ * Pollution at (1,1) and (2,1) blocks the direct path.
+ * Obstacles at (1,0),(2,0),(1,2),(2,2) block alternate routes.
+ */
+export function createPollutionBlockedBoard(): BoardState {
+  let board = createEmptyBoard(4, 3);
+  board = setCell(board, 1, 0, { x: 1, y: 0, kind: 'obstacle', obstacleType: 'rock' });
+  board = setCell(board, 2, 0, { x: 2, y: 0, kind: 'obstacle', obstacleType: 'rock' });
+  board = setCell(board, 1, 1, { x: 1, y: 1, kind: 'pollution', pollutionExpireTurn: 99 });
+  board = setCell(board, 2, 1, { x: 2, y: 1, kind: 'pollution', pollutionExpireTurn: 99 });
+  board = setCell(board, 1, 2, { x: 1, y: 2, kind: 'obstacle', obstacleType: 'rock' });
+  board = setCell(board, 2, 2, { x: 2, y: 2, kind: 'obstacle', obstacleType: 'rock' });
+
+  const layout = [
+    { x: 0, y: 1, id: 't1', type: 'A' },
+    { x: 3, y: 1, id: 't2', type: 'A' },
+  ];
+  for (const t of layout) {
+    const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
+    board = setCell(board, t.x, t.y, cell);
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active' };
+  }
+  return board;
 }

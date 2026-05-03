@@ -1,5 +1,5 @@
 import type { Tile } from '@/types/board';
-import { TILE_COLORS, TILE_TEXT_COLORS, SELECTED_BORDER_COLOR, SPECIAL_TILE_GLOW } from '@/assets/tile-colors';
+import { TILE_COLORS, TILE_TEXT_COLORS, SELECTED_BORDER_COLOR, SPECIAL_S_GLOW, SPECIAL_T_GLOW } from '@/assets/tile-colors';
 
 export function drawTile(
   ctx: CanvasRenderingContext2D,
@@ -16,8 +16,9 @@ export function drawTile(
   const textColor = TILE_TEXT_COLORS[tile.type] ?? '#333333';
 
   // Draw glow for special tiles
-  if (tile.special) {
-    ctx.shadowColor = SPECIAL_TILE_GLOW;
+  const glowColor = tile.specialType === 'S' ? SPECIAL_S_GLOW : tile.specialType === 'T' ? SPECIAL_T_GLOW : null;
+  if (glowColor) {
+    ctx.shadowColor = glowColor;
     ctx.shadowBlur = 8;
   }
 
@@ -27,17 +28,24 @@ export function drawTile(
   ctx.fill();
 
   // Reset shadow
-  if (tile.special) {
+  if (glowColor) {
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
   }
 
-  // Draw special marker (star symbol)
-  if (tile.special) {
-    ctx.strokeStyle = SPECIAL_TILE_GLOW;
+  // Draw special marker border
+  if (glowColor) {
+    ctx.strokeStyle = glowColor;
     ctx.lineWidth = 2;
     roundRect(ctx, px + padding, py + padding, cellSize - padding * 2, cellSize - padding * 2, radius);
     ctx.stroke();
+
+    // Draw special type indicator in top-right corner
+    ctx.fillStyle = glowColor;
+    ctx.font = `bold ${cellSize * 0.2}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(tile.specialType!, px + cellSize - padding - 2, py + padding + 2);
   }
 
   // Draw tile type letter

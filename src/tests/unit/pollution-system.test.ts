@@ -12,7 +12,7 @@ function makeBoardWithTiles() {
   for (const t of layout) {
     const cell: Cell = { x: t.x, y: t.y, kind: 'tile', tileId: t.id };
     board = setCell(board, t.x, t.y, cell);
-    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active', special: false };
+    board.tiles[t.id] = { id: t.id, type: t.type, x: t.x, y: t.y, state: 'active' };
   }
   return board;
 }
