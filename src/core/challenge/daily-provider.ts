@@ -1,6 +1,7 @@
 import type { LevelConfig } from '@/types/level';
 import type { ChallengeDate } from '@/types/challenge';
 import type { ObstacleConfig } from '@/types/level';
+import { getDailyParams } from '@/core/config/game-balance';
 
 /**
  * Simple deterministic hash from date string.
@@ -27,64 +28,80 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-/** Predefined obstacle layout patterns for variety */
-const OBSTACLE_PATTERNS: Array<Array<ObstacleConfig>> = [
-  [{ x: 3, y: 3, type: 'rock' }, { x: 4, y: 4, type: 'rock' }, { x: 5, y: 5, type: 'rock' }],
-  [{ x: 1, y: 1, type: 'rock' }, { x: 6, y: 6, type: 'rock' }, { x: 3, y: 4, type: 'rock' }],
-  [{ x: 2, y: 2, type: 'rock' }, { x: 5, y: 5, type: 'rock' }, { x: 4, y: 1, type: 'rock' }, { x: 1, y: 6, type: 'rock' }],
-  [{ x: 0, y: 3, type: 'rock' }, { x: 7, y: 4, type: 'rock' }, { x: 3, y: 0, type: 'rock' }, { x: 4, y: 7, type: 'rock' }],
-  [{ x: 2, y: 1, type: 'rock' }, { x: 7, y: 6, type: 'rock' }, { x: 3, y: 4, type: 'rock' }],
-  [{ x: 4, y: 3, type: 'rock' }, { x: 5, y: 4, type: 'rock' }, { x: 0, y: 0, type: 'rock' }, { x: 9, y: 7, type: 'rock' }],
-  [{ x: 3, y: 2, type: 'rock' }, { x: 6, y: 5, type: 'rock' }, { x: 9, y: 3, type: 'rock' }, { x: 2, y: 8, type: 'rock' }, { x: 7, y: 1, type: 'rock' }],
-  [{ x: 1, y: 4, type: 'rock' }, { x: 8, y: 2, type: 'rock' }, { x: 5, y: 7, type: 'rock' }, { x: 4, y: 9, type: 'rock' }, { x: 9, y: 5, type: 'rock' }],
-];
+/**
+ * Generate obstacle positions using seeded RNG and obstacleRatio.
+ * Guarantees obstacle count is even so that remaining slots can be fully
+ * filled with paired tiles.
+ */
+function generateObstacles(
+  width: number,
+  height: number,
+  obstacleRatio: number,
+  rng: () => number,
+): ObstacleConfig[] {
+  const total = width * height;
+  let count = Math.floor(total * obstacleRatio);
+  // Ensure even count: odd → round down to even
+  if (count % 2 !== 0) count--;
 
-const TILE_TYPE_POOLS = [
-  ['A', 'B', 'C', 'D', 'E', 'F'],
-  ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
-  ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
-];
+  if (count <= 0) return [];
+
+  // Build shuffled position list using seeded RNG
+  const positions: Array<{ x: number; y: number }> = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      positions.push({ x, y });
+    }
+  }
+
+  // Fisher-Yates shuffle with seeded RNG
+  for (let i = positions.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [positions[i], positions[j]] = [positions[j]!, positions[i]!];
+  }
+
+  const obstacles: ObstacleConfig[] = [];
+  for (let i = 0; i < count; i++) {
+    const pos = positions[i]!;
+    obstacles.push({ x: pos.x, y: pos.y, type: 'rock' });
+  }
+
+  return obstacles;
+}
 
 /**
  * Generates a daily challenge LevelConfig based on the date.
- * Pure function: same date always returns same config.
+ * Uses game-balance parameters (can be overridden via remote config).
  */
 export function getDailyChallengeConfig(date: ChallengeDate): LevelConfig {
+  const p = getDailyParams();
   const hash = hashDate(date);
   const rng = seededRandom(hash);
 
-  // Pick board size: 10x8 or 12x10
-  const sizes: Array<[number, number]> = [[10, 8], [12, 10]];
-  const [width, height] = sizes[Math.floor(rng() * sizes.length)]!;
+  const width = p.boardWidth;
+  const height = p.boardHeight;
 
-  // Pick tile type pool (6~8 types)
-  const tileTypes = TILE_TYPE_POOLS[Math.floor(rng() * TILE_TYPE_POOLS.length)]!;
+  // Generate obstacles from ratio + seeded RNG (even count guaranteed)
+  const obstacles = generateObstacles(width, height, p.obstacleRatio, rng);
 
-  // Pick obstacle pattern (adjust coords if needed for board size)
-  const obstacleBase = OBSTACLE_PATTERNS[Math.floor(rng() * OBSTACLE_PATTERNS.length)]!;
-  const obstacles = obstacleBase.filter((o) => o.x < width && o.y < height);
-
-  // Pollution: always enabled, duration 3~4 turns
-  const durationTurns = rng() > 0.5 ? 3 : 4;
-
-  // Special types: always include both S and T, 2 pairs each
-  const specialTypes: Array<'S' | 'T'> = ['S', 'T'];
-  const specialPairsPerType = 2;
+  // Pollution duration with daily variation
+  const durationVariants = [p.pollutionDurationTurns, p.pollutionDurationTurns + 1];
+  const pollutionDurationTurns = durationVariants[Math.floor(rng() * durationVariants.length)]!;
 
   return {
     id: `daily-${date}`,
     name: `今日挑战 ${date}`,
     width,
     height,
-    tileTypes,
-    specialTypes,
-    specialPairsPerType,
+    tileTypes: [...p.tileTypes],
+    specialTypes: [...p.specialTypes],
+    specialPairsPerType: p.specialPairsPerType,
     fillBoard: true,
     obstacles,
-    pollution: { enabled: true, durationTurns },
-    shuffleLimit: 1,
-    hintLimit: 0,
-    timeLimit: 180,
+    pollution: { enabled: p.pollutionEnabled, durationTurns: pollutionDurationTurns },
+    shuffleLimit: p.shuffleLimit,
+    hintLimit: p.hintLimit,
+    timeLimit: p.timeLimit > 0 ? p.timeLimit : undefined,
     target: { type: 'clear_all' },
   };
 }

@@ -58,7 +58,8 @@ export function setTileState(board: BoardState, tileId: string, state: Tile['sta
 export function isCellPassable(board: BoardState, x: number, y: number): boolean {
   const cell = getCell(board, x, y);
   if (!cell) return false;
-  return cell.kind === 'empty';
+  // Spirit trail is a visual effect only, it does NOT block pathfinding
+  return cell.kind === 'empty' || cell.kind === 'spirit_trail';
 }
 
 export function isInBounds(board: BoardState, x: number, y: number): boolean {

@@ -29,7 +29,34 @@ export function applyPollution(
 }
 
 /**
- * Decay pollution: remove pollution cells whose expire turn has passed.
+ * Apply spirit trail to empty cells along S-tile match path.
+ * Spirit trail is a visual highlight that persists for a few turns.
+ * Unlike pollution, spirit trail does NOT block pathfinding.
+ */
+export function applySpiritTrail(
+  board: BoardState,
+  path: Point[],
+  currentTurn: number,
+  durationTurns: number,
+): BoardState {
+  let newBoard = board;
+  for (const point of path) {
+    const cell = getCell(board, point.x, point.y);
+    if (cell && cell.kind === 'empty') {
+      const trailCell: Cell = {
+        x: point.x,
+        y: point.y,
+        kind: 'spirit_trail',
+        pollutionExpireTurn: currentTurn + durationTurns,
+      };
+      newBoard = setCell(newBoard, point.x, point.y, trailCell);
+    }
+  }
+  return newBoard;
+}
+
+/**
+ * Decay pollution and spirit trails: remove cells whose expire turn has passed.
  */
 export function decayPollution(board: BoardState, currentTurn: number): BoardState {
   let newBoard = board;
@@ -37,7 +64,7 @@ export function decayPollution(board: BoardState, currentTurn: number): BoardSta
     for (let x = 0; x < board.width; x++) {
       const cell = board.cells[y]![x]!;
       if (
-        cell.kind === 'pollution' &&
+        (cell.kind === 'pollution' || cell.kind === 'spirit_trail') &&
         cell.pollutionExpireTurn !== undefined &&
         currentTurn >= cell.pollutionExpireTurn
       ) {
@@ -62,13 +89,14 @@ export function countPollution(board: BoardState): number {
 }
 
 /**
- * Clear all pollution cells from the board (for debug).
+ * Clear all pollution and spirit trail cells from the board.
  */
 export function clearAllPollution(board: BoardState): BoardState {
   let newBoard = board;
   for (let y = 0; y < board.height; y++) {
     for (let x = 0; x < board.width; x++) {
-      if (board.cells[y]![x]!.kind === 'pollution') {
+      const kind = board.cells[y]![x]!.kind;
+      if (kind === 'pollution' || kind === 'spirit_trail') {
         newBoard = setCell(newBoard, x, y, { x, y, kind: 'empty' });
       }
     }

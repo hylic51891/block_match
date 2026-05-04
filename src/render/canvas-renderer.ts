@@ -66,6 +66,15 @@ export function render(
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('☠', px + cellSize / 2, py + cellSize / 2);
+      } else if (cell.kind === 'spirit_trail') {
+        // Spirit trail: soft pink glow, visual only, does not block
+        ctx.fillStyle = 'rgba(255, 105, 180, 0.25)';
+        ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+        ctx.strokeStyle = 'rgba(255, 105, 180, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(px + 2, py + 2, cellSize - 4, cellSize - 4);
+        ctx.setLineDash([]);
       }
     }
   }

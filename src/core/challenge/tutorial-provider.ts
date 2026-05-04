@@ -1,22 +1,27 @@
 import type { LevelConfig } from '@/types/level';
+import { getTutorialParams } from '@/core/config/game-balance';
 
 /**
  * Provides a fixed tutorial level configuration.
- * Small board, few types, no obstacles, pollution for demo only.
+ * Uses game-balance parameters for consistent tuning.
  */
 export function getTutorialLevelConfig(): LevelConfig {
+  const p = getTutorialParams();
+
   return {
     id: 'tutorial',
     name: '教学关',
-    width: 6,
-    height: 6,
-    tileTypes: ['A', 'B', 'C', 'D'],
-    specialTypes: ['S', 'T'],
+    width: p.boardWidth,
+    height: p.boardHeight,
+    tileTypes: [...p.tileTypes],
+    specialTypes: [...p.specialTypes],
+    specialPairsPerType: p.specialPairsPerType,
     fillBoard: true,
     obstacles: [],
-    pollution: { enabled: true, durationTurns: 2 },
-    shuffleLimit: 3,
-    hintLimit: 99,
+    pollution: { enabled: p.pollutionEnabled, durationTurns: p.pollutionDurationTurns },
+    shuffleLimit: p.shuffleLimit,
+    hintLimit: p.hintLimit,
+    timeLimit: p.timeLimit > 0 ? p.timeLimit : undefined,
     target: { type: 'clear_all' },
     tutorial: {
       title: '欢迎',

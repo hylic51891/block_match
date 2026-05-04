@@ -1,4 +1,4 @@
-export type CellKind = 'empty' | 'tile' | 'obstacle' | 'pollution';
+export type CellKind = 'empty' | 'tile' | 'obstacle' | 'pollution' | 'spirit_trail';
 
 export type Cell = {
   x: number;

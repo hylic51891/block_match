@@ -11,7 +11,7 @@ import { resolveMatch } from '@/core/rules/match-resolver';
 import { checkWin, checkLose } from '@/core/systems/win-lose-checker';
 import { isDeadlocked } from '@/core/systems/deadlock-detector';
 import { shuffle } from '@/core/systems/shuffle-manager';
-import { applyPollution, decayPollution, purifyAroundPath } from '@/core/systems/pollution-system';
+import { applyPollution, applySpiritTrail, clearAllPollution, decayPollution, purifyAroundPath } from '@/core/systems/pollution-system';
 import { useHint as hintManagerUseHint, getHintPair as hintManagerGetHintPair } from '@/core/systems/hint-manager';
 
 export type GameStateWithConfig = GameRuntimeState & { _config?: LevelConfig };
@@ -148,16 +148,23 @@ export function selectTile(state: GameStateWithConfig, tileId: string): GameStat
     { x: tile.x, y: tile.y },
   ];
 
-  // Apply pollution if enabled (S tiles can pass through pollution, so their paths don't create it)
+  // Apply pollution if enabled (special tiles don't create pollution on their paths)
   const currentTurn = state.turn;
   const hasPhaseTile = firstTile.specialType === 'S' || tile.specialType === 'S';
+  const hasPurifyTile = firstTile.specialType === 'T' || tile.specialType === 'T';
+  const hasSpecialTile = hasPhaseTile || hasPurifyTile;
 
-  if (config?.pollution.enabled && matchResult.path.length > 0 && !hasPhaseTile) {
+  if (config?.pollution.enabled && matchResult.path.length > 0 && !hasSpecialTile) {
     newBoard = applyPollution(newBoard, matchResult.path, currentTurn, config.pollution.durationTurns);
   }
 
-  // T tile purification: after match, clear pollution around path (at least one T)
-  if ((firstTile.specialType === 'T' || tile.specialType === 'T') && matchResult.path.length > 0) {
+  // S tile spirit trail: visual highlight that persists for 2 turns (doesn't block)
+  if (hasPhaseTile && config?.pollution.enabled && matchResult.path.length > 0) {
+    newBoard = applySpiritTrail(newBoard, matchResult.path, currentTurn, 2);
+  }
+
+  // T tile purification: after match, clear pollution around path
+  if (hasPurifyTile && matchResult.path.length > 0) {
     newBoard = purifyAroundPath(newBoard, matchResult.path);
   }
 
@@ -200,7 +207,7 @@ export function useShuffle(state: GameStateWithConfig): GameStateWithConfig {
   if (state.status !== 'playing') return state;
   if (state.shuffleRemaining <= 0) return state;
 
-  const newBoard = shuffle(state.board);
+  const newBoard = clearAllPollution(shuffle(state.board));
   const newShuffleRemaining = state.shuffleRemaining - 1;
 
   // Check if still deadlocked after shuffle

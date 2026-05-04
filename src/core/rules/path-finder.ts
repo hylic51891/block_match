@@ -24,10 +24,10 @@ export function findPath(board: BoardState, start: Point, end: Point, options?: 
   const maxTurns = options?.canPassPollution ? Math.max(baseMaxTurns, 3) : baseMaxTurns;
   const isPassable = (x: number, y: number) => {
     if (options?.canPassPollution) {
-      // Can pass through pollution cells
+      // Can pass through pollution and spirit trail cells
       const cell = board.cells[y]?.[x];
       if (!cell) return false;
-      return cell.kind === 'empty' || cell.kind === 'pollution';
+      return cell.kind === 'empty' || cell.kind === 'pollution' || cell.kind === 'spirit_trail';
     }
     return isCellPassable(board, x, y);
   };

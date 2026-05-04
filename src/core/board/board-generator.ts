@@ -58,14 +58,42 @@ function generateBoardOnce(config: LevelConfig): BoardState {
 
     // Each special type appears as N pairs (2*N tiles), default N=1
     const specialPairs = config.specialPairsPerType ?? 1;
-    const specialPerType = specialPairs * 2;
-    let specialCount = specialTypes.length * specialPerType;
-    if (specialCount % 2 !== 0) specialCount++;
+    const specialPerType = specialPairs * 2; // always even
+    const specialCount = specialTypes.length * specialPerType;
 
-    const normalSlots = totalSlots - specialCount;
+    let normalSlots = totalSlots - specialCount;
+
+    // Guarantee normalSlots is even: if odd, remove last obstacle to make it even
+    // This ensures every slot can be filled with paired tiles
+    if (normalSlots % 2 !== 0 && config.obstacles.length > 0) {
+      // Remove the last obstacle to free one slot → normalSlots becomes even
+      const lastObs = config.obstacles[config.obstacles.length - 1]!;
+      board = setCell(board, lastObs.x, lastObs.y, {
+        x: lastObs.x,
+        y: lastObs.y,
+        kind: 'empty',
+      });
+      // Recollect available positions
+      availablePositions.length = 0;
+      for (let y = 0; y < config.height; y++) {
+        for (let x = 0; x < config.width; x++) {
+          const cell = board.cells[y]![x]!;
+          if (cell.kind === 'empty') {
+            availablePositions.push({ x, y });
+          }
+        }
+      }
+      normalSlots = availablePositions.length - specialCount;
+    }
+
     const normalTypesCount = normalTypes.length;
-    const perNormalType = Math.floor(normalSlots / normalTypesCount);
-    let remaining = totalSlots - specialCount - perNormalType * normalTypesCount;
+
+    // perNormalType must be even → each type count is a multiple of 2
+    let perNormalType = Math.floor(normalSlots / normalTypesCount);
+    if (perNormalType % 2 !== 0) perNormalType--; // round down to even
+
+    // Recalculate remaining after placing even-count normal tiles
+    let remaining = availablePositions.length - specialCount - perNormalType * normalTypesCount;
 
     const tileList: Array<{ type: string; specialType?: SpecialType }> = [];
 
@@ -77,14 +105,14 @@ function generateBoardOnce(config: LevelConfig): BoardState {
       }
     }
 
-    // Add normal tiles
+    // Add normal tiles (always even count per type)
     for (const nt of normalTypes) {
       for (let i = 0; i < perNormalType; i++) {
         tileList.push({ type: nt });
       }
     }
 
-    // Distribute remaining slots
+    // Distribute remaining slots in pairs (always add 2 of same type)
     let idx = 0;
     while (remaining >= 2) {
       const nt = normalTypes[idx % normalTypesCount]!;
@@ -100,11 +128,10 @@ function generateBoardOnce(config: LevelConfig): BoardState {
       [tileList[i], tileList[j]] = [tileList[j]!, tileList[i]!];
     }
 
-    // Place tiles
+    // Place tiles — tileList.length should now equal availablePositions.length
     const tiles: BoardState['tiles'] = {};
-    const count = Math.min(tileList.length, availablePositions.length);
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < tileList.length; i++) {
       const pos = availablePositions[i]!;
       const entry = tileList[i]!;
       const id = nextTileId();
@@ -162,6 +189,58 @@ function generateBoardOnce(config: LevelConfig): BoardState {
   }
 
   return { ...board, tiles };
+}
+
+/** Validate that a generated board has all slots filled and every tile type has even count */
+export function validateBoard(board: BoardState): {
+  valid: boolean;
+  filledRatio: number;
+  typeCounts: Record<string, number>;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  // Check all cells are either tile or obstacle (no empty cells)
+  let emptyCount = 0;
+  for (let y = 0; y < board.height; y++) {
+    for (let x = 0; x < board.width; x++) {
+      if (board.cells[y]![x]!.kind === 'empty') emptyCount++;
+    }
+  }
+
+  const totalCells = board.width * board.height;
+  const filledRatio = (totalCells - emptyCount) / totalCells;
+
+  if (emptyCount > 0) {
+    errors.push(`棋盘有 ${emptyCount} 个空位未填充`);
+  }
+
+  // Check every tile type has even count
+  const typeCounts: Record<string, number> = {};
+  for (const tile of Object.values(board.tiles)) {
+    if (tile.state !== 'removed') {
+      typeCounts[tile.type] = (typeCounts[tile.type] ?? 0) + 1;
+    }
+  }
+
+  for (const [type, count] of Object.entries(typeCounts)) {
+    if (count % 2 !== 0) {
+      errors.push(`图块类型 ${type} 数量为 ${count}（奇数），无法全部配对`);
+    }
+  }
+
+  // Check total tile count is even
+  const totalTiles = Object.values(board.tiles).filter(t => t.state !== 'removed').length;
+  if (totalTiles % 2 !== 0) {
+    errors.push(`图块总数 ${totalTiles} 为奇数`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    filledRatio,
+    typeCounts,
+    errors,
+  };
 }
 
 export { getActiveTiles };
